@@ -206,8 +206,8 @@ async function main() {
   // Run immediately on start, then every 60 minutes
   await runOnce();
 
-  const INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-  console.log(`\n[bot] Next scan in 60 minutes. Ctrl+C to stop.`);
+  const INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+  console.log(`\n[bot] Next scan in 30 minutes. Ctrl+C to stop.`);
 
   setInterval(async () => {
     await runOnce();
