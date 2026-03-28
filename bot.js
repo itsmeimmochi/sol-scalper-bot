@@ -20,7 +20,7 @@ import { bollingerBands, rsi } from './lib/indicators.js';
 import { shouldBuy, shouldSell, pnlPct } from './lib/signals.js';
 import { loadPositions, hasPosition, getPosition, openPosition, closePosition, openPositionCount, getStats } from './lib/positions.js';
 import { buy, sell, loadWallet } from './lib/executor.js';
-import { notify, buyMessage, sellMessage, errorMessage } from './lib/notify.js';
+import { notify, buyMessage, sellMessage, errorMessage, scanSummaryMessage } from './lib/notify.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = resolve(__dirname, 'config.json');
@@ -63,22 +63,25 @@ if (!dryRun) {
 }
 
 // ── Process a single token using cached closes ─────────────────────────────────
+// Returns { symbol, price, rsi, signal } for the scan summary.
 async function scanToken(token, currentPrice) {
   const { symbol, mint } = token;
+  const result = { symbol, price: currentPrice.toFixed(4), rsi: 0, signal: null };
 
   const closes = getCloses(token.geckoId);
   if (!closes) {
     console.warn(`[bot] No cached data for ${symbol} — skipping`);
-    return;
+    return result;
   }
 
   if (closes.length < bbPeriod + 1) {
     console.warn(`[bot] Not enough data for ${symbol} (${closes.length} candles, need ${bbPeriod + 1})`);
-    return;
+    return result;
   }
 
   const bb       = bollingerBands(closes, bbPeriod, bbStdDev);
   const rsiValue = rsi(closes, rsiPeriod);
+  result.rsi     = rsiValue;
 
   console.log(`[bot] ${symbol} | price=$${currentPrice.toFixed(6)} | BB[${bb.lower.toFixed(4)}, ${bb.middle.toFixed(4)}, ${bb.upper.toFixed(4)}] | RSI=${rsiValue.toFixed(1)}`);
 
@@ -86,16 +89,12 @@ async function scanToken(token, currentPrice) {
   const position = getPosition(symbol);
   if (position) {
     const { sell: doSell, reason } = shouldSell({
-      close: currentPrice,
-      bb,
-      rsiValue,
-      entryPrice: position.entryPrice,
-      takeProfitPct,
-      stopLossPct,
-      rsiSellThreshold,
+      close: currentPrice, bb, rsiValue,
+      entryPrice: position.entryPrice, takeProfitPct, stopLossPct, rsiSellThreshold,
     });
 
     if (doSell) {
+      result.signal = 'sell';
       console.log(`[bot] SELL signal for ${symbol} — reason: ${reason}`);
       try {
         await sell({ symbol, mint, tokenAmount: position.tokenAmount, slippageBps, wallet, connection, dryRun, currentPrice });
@@ -107,16 +106,18 @@ async function scanToken(token, currentPrice) {
         await notify(errorMessage(`sell:${symbol}`, e));
       }
     }
-    return;
+    return result;
   }
 
   // ── Buy check ──
   const buySignal = shouldBuy({ close: currentPrice, bb, rsiValue, hasOpenPosition: hasPosition(symbol), rsiBuyThreshold });
 
   if (buySignal) {
+    result.signal = 'buy';
     if (openPositionCount() >= maxOpenPositions) {
       console.log(`[bot] BUY signal for ${symbol} but max positions (${maxOpenPositions}) reached — skipping`);
-      return;
+      result.signal = null;
+      return result;
     }
     console.log(`[bot] BUY signal for ${symbol} @ $${currentPrice.toFixed(6)}`);
     try {
@@ -128,6 +129,8 @@ async function scanToken(token, currentPrice) {
       await notify(errorMessage(`buy:${symbol}`, e));
     }
   }
+
+  return result;
 }
 
 function printStats() {
@@ -164,14 +167,24 @@ async function runOnce() {
   }
 
   // Process each token using cached data — no more API calls
+  const results = [];
   for (const token of tokens) {
     const price = currentPrices.get(token.geckoId);
     if (price == null) {
       console.warn(`[bot] No price returned for ${token.symbol} — skipping`);
       continue;
     }
-    await scanToken(token, price);
+    const result = await scanToken(token, price);
+    results.push(result);
   }
+
+  // Send scan summary to Telegram
+  await notify(scanSummaryMessage({
+    results,
+    openPositions: openPositionCount(),
+    stats: getStats(),
+    dryRun,
+  }));
 }
 
 // ── Main loop ──────────────────────────────────────────────────────────────────
