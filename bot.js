@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 import { fetchCloses } from './lib/market.js';
 import { bollingerBands, rsi } from './lib/indicators.js';
 import { shouldBuy, shouldSell, pnlPct } from './lib/signals.js';
-import { loadPositions, hasPosition, getPosition, openPosition, closePosition, openPositionCount } from './lib/positions.js';
+import { loadPositions, hasPosition, getPosition, openPosition, closePosition, openPositionCount, getStats } from './lib/positions.js';
 import { buy, sell, loadWallet } from './lib/executor.js';
 import { notify, buyMessage, sellMessage, errorMessage } from './lib/notify.js';
 
@@ -110,7 +110,7 @@ async function scanToken(token) {
         });
 
         const pnl = pnlPct(position.entryPrice, currentPrice);
-        closePosition(symbol);
+        closePosition(symbol, currentPrice, reason);
 
         await notify(sellMessage({
           symbol,
@@ -167,9 +167,25 @@ async function scanToken(token) {
   }
 }
 
+function printStats() {
+  const s = getStats();
+  if (s.total === 0) {
+    console.log('[bot] Stats: no closed trades yet');
+    return;
+  }
+  const pnlSign = s.totalPnlUsdc >= 0 ? '+' : '';
+  console.log(
+    `[bot] Stats: ${s.total} trades | ` +
+    `Win rate: ${s.winRate}% (${s.wins}W/${s.losses}L) | ` +
+    `PnL: ${pnlSign}$${s.totalPnlUsdc.toFixed(2)} USDC | ` +
+    `Avg: ${s.avgWinPct > 0 ? '+' : ''}${s.avgWinPct.toFixed(2)}% win / ${s.avgLossPct.toFixed(2)}% loss`
+  );
+}
+
 async function runOnce() {
   console.log(`\n[bot] === Scan at ${new Date().toISOString()} ===`);
   console.log(`[bot] Mode: ${dryRun ? 'DRY RUN' : 'LIVE'} | Open positions: ${openPositionCount()}/${maxOpenPositions}`);
+  printStats();
 
   for (const token of tokens) {
     await scanToken(token);
