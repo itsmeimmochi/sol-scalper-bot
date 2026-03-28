@@ -189,8 +189,8 @@ async function runOnce() {
 
   for (const token of tokens) {
     await scanToken(token);
-    // Small delay to avoid rate-limiting CoinGecko free tier
-    await new Promise(r => setTimeout(r, 1500));
+    // Delay between tokens to respect CoinGecko free tier rate limits (~30 req/min)
+    await new Promise(r => setTimeout(r, 3000));
   }
 }
 
