@@ -1,0 +1,5 @@
+node_modules/
+wallet.json
+positions.json
+.env
+*.log

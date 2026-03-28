@@ -1,0 +1,28 @@
+{
+  "tokens": [
+    {"symbol": "SOL", "geckoId": "solana", "mint": "So11111111111111111111111111111111111111112"},
+    {"symbol": "JUP", "geckoId": "jupiter-exchange-solana", "mint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"},
+    {"symbol": "RAY", "geckoId": "raydium", "mint": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"},
+    {"symbol": "ORCA", "geckoId": "orca", "mint": "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE"},
+    {"symbol": "JTO", "geckoId": "jito-governance-token", "mint": "jtojtomepa8berppaku3nkwx5h4khi9f2hzedsxqy"},
+    {"symbol": "PYTH", "geckoId": "pyth-network", "mint": "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3"},
+    {"symbol": "BONK", "geckoId": "bonk", "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"},
+    {"symbol": "WIF", "geckoId": "dogwifcoin", "mint": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm"}
+  ],
+  "strategy": {
+    "bbPeriod": 20,
+    "bbStdDev": 2.0,
+    "rsiPeriod": 14,
+    "rsiBuyThreshold": 38,
+    "rsiSellThreshold": 65
+  },
+  "risk": {
+    "positionSizeUsdc": 25,
+    "takeProfitPct": 1.0,
+    "stopLossPct": 0.8,
+    "maxOpenPositions": 6
+  },
+  "rpc": "https://ketty-o8ez4n-fast-mainnet.helius-rpc.com",
+  "slippageBps": 50,
+  "dryRun": true
+}
