@@ -1,12 +1,12 @@
 /**
- * Seed bot_config from config.json (repo default). Idempotent upsert.
+ * Seed bot_config + trading_tokens from config.json (repo default). Idempotent upsert.
  */
 import 'dotenv/config';
 import { readFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-import { ensureSchema, getPool, upsertBotConfig } from '../lib/db.js';
+import { ensureSchema, getPool, upsertBotConfig, upsertTradingTokens } from '../lib/db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -17,7 +17,8 @@ async function main() {
   const config = JSON.parse(raw);
   await ensureSchema();
   await upsertBotConfig(config);
-  console.log(`[seed] bot_config upserted from ${CONFIG_PATH}`);
+  await upsertTradingTokens(config.tokens);
+  console.log(`[seed] bot_config + trading_tokens upserted from ${CONFIG_PATH}`);
   await getPool().end();
 }
 
