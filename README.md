@@ -21,57 +21,105 @@ SOL, JUP, RAY, ORCA, JTO, PYTH, BONK, WIF
 npm install
 ```
 
-### 2. Generate a wallet
+### 2. PostgreSQL
+
+**Docker (recommended for local dev):**
 
 ```bash
-node bot.js --generate-wallet
+docker compose up -d db
 ```
 
-Fund the generated wallet with:
+Postgres is exposed on the host at `${POSTGRES_HOST_PORT:-5432}`. Data is stored in the named volume `pgdata`.
+
+Set `DATABASE_URL` (example for default compose credentials):
+
+```bash
+export DATABASE_URL="postgresql://scalper:scalper@127.0.0.1:5432/scalper"
+```
+
+Seed the `bot_config` row from [config.json](config.json):
+
+```bash
+npm run db:seed
+```
+
+### 3. Environment
+
+Create a `.env` file (or export variables). See [example.env](example.env) for placeholders. Compose reads `.env` for substitution.
+
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `DATABASE_URL` | Yes | Postgres connection string |
+| `WALLET_SECRET_KEY` | Live trading only | JSON array of secret key bytes (see wallet step) |
+| `TELEGRAM_BOT_TOKEN` | No | Telegram bot token |
+| `TELEGRAM_CHAT_ID` | No | Telegram chat id |
+
+### 4. Generate a wallet
+
+```bash
+npm run wallet
+```
+
+Copy the printed `WALLET_SECRET_KEY=...` line into `.env` or your secrets manager.
+
+Fund the wallet with:
+
 - **SOL** for transaction fees (~0.05 SOL is enough to start)
 - **USDC** for trading (at least `positionSizeUsdc × maxOpenPositions` = $150 USDC by default)
 
-### 3. Configure
+### 5. Configure strategy / risk
 
-Edit `config.json` to adjust:
-- `dryRun`: set to `false` to enable live trading
-- `risk.positionSizeUsdc`: position size per trade
-- `risk.takeProfitPct` / `risk.stopLossPct`: TP/SL thresholds
-- `strategy.*`: indicator parameters
+Defaults live in [config.json](config.json) and are **upserted** into Postgres by `npm run db:seed` (and automatically when the Docker image starts).
 
-### 4. Set up Telegram alerts (optional)
+After changing [config.json](config.json), run `npm run db:seed` again (or redeploy so the container entrypoint re-seeds).
 
-```bash
-export TELEGRAM_BOT_TOKEN="your_bot_token"
-export TELEGRAM_CHAT_ID="your_chat_id"
-```
+To change settings without editing the file, update the `bot_config.config` JSON in PostgreSQL directly (then restart the bot).
 
-### 5. Run the bot
+### 6. Set up Telegram alerts (optional)
+
+Already supported via `.env` or `export`.
+
+### 7. Run the bot
+
+Local:
 
 ```bash
 npm start
 ```
 
-The bot scans all tokens every 60 minutes.
+**Full stack with Docker Compose** (Postgres + bot):
+
+```bash
+docker compose up -d --build
+```
+
+The bot container runs `db:seed` on each start, then `node bot.js`. Scans run every 30 minutes.
+
+## Coolify (Docker Compose)
+
+1. Create a **Docker Compose** deployment from this repository.
+2. Set secrets/environment to match the table above (`DATABASE_URL` in compose points at the `db` service — see [docker-compose.yml](docker-compose.yml)).
+3. Ensure the **`pgdata` volume** is persisted the way Coolify expects for named volumes.
+4. Postgres is published on **`${POSTGRES_HOST_PORT:-5432}:5432`** so you can connect from the server or LAN (adjust firewall; use a strong password; avoid exposing `5432` on the public internet without restrictions).
 
 ## Project Structure
 
 ```
-scalper/
   bot.js               ← Main entry + orchestration loop
-  config.json          ← All configurable settings
-  wallet.json          ← Keypair (gitignored, generate with --generate-wallet)
-  positions.json        ← Live position state (auto-created, gitignored)
+  config.json          ← Default settings (seeded into Postgres)
+  docker-compose.yml   ← Postgres + bot (persistent pgdata volume)
+  Dockerfile           ← Bot image
   lib/
+    db.js              ← Postgres pool, schema, loadConfig
     market.js          ← CoinGecko fetching + candle building
-    indicators.js      ← Pure BB + RSI functions
-    signals.js         ← Pure buy/sell signal logic
+    indicators.js      ← Pure BB + RSI
+    signals.js         ← Pure buy/sell logic
     executor.js        ← Jupiter swap execution
-    positions.js       ← Position tracking (in-memory + disk)
-    notify.js          ← Telegram notifications
+    positions.js       ← Positions + trades in Postgres
+    notify.js          ← Telegram
+  scripts/
+    seed-config.mjs    ← Upsert bot_config from config.json
   test/
-    indicators.test.js ← Unit tests for indicators
-    signals.test.js    ← Unit tests for signals
 ```
 
 ## Running Tests
@@ -80,15 +128,18 @@ scalper/
 npm test
 ```
 
+Unit tests do not require a database.
+
 ## Dry Run Mode
 
-By default, `dryRun: true` in `config.json`. In dry run mode:
+By default `dryRun` is `true` in the seeded config. In dry run:
+
 - All trade signals are logged to console
 - No actual swaps are executed
 - Positions are tracked as if trades happened (at current market price)
-- Telegram notifications are sent with `[DRY RUN]` tag
+- Telegram notifications are sent with `[DRY RUN]`
 
-Set `"dryRun": false` to enable live trading.
+Set `dryRun` to `false` in the stored config for live trading (and set `WALLET_SECRET_KEY`).
 
 ## Risk Warning
 
@@ -96,7 +147,7 @@ Set `"dryRun": false` to enable live trading.
 
 ## Architecture Notes
 
-- **Pure functions**: `indicators.js` and `signals.js` have zero side effects — safe to test and reason about
-- **Persistence**: Open positions survive restarts via `positions.json`
+- **Pure functions**: `indicators.js` and `signals.js` have no I/O
+- **Persistence**: Config, open positions, and trade history live in **PostgreSQL** — no `wallet.json` / `positions.json` / `trades.json` at runtime
 - **Rate limiting**: 1.5s delay between token scans to respect CoinGecko free tier
 - **Error isolation**: Failures on one token don't halt the entire scan loop

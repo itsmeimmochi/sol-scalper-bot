@@ -1,6 +1,3 @@
 node_modules/
-wallet.json
-positions.json
-trades.json
 .env
 *.log

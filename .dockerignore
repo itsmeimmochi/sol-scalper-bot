@@ -1,0 +1,11 @@
+node_modules
+.git
+.env
+.env.*
+*.log
+wallet.json
+positions.json
+trades.json
+test
+README.md
+.cursor
