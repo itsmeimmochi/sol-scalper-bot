@@ -73,9 +73,14 @@ Defaults live in [config.json](config.json) and are **upserted** into Postgres b
 
 After changing [config.json](config.json), run `npm run db:seed` again (or redeploy so the container entrypoint re-seeds).
 
-To change settings without editing the file, update the `bot_config.config` JSON in PostgreSQL directly (then restart the bot).
+To change settings without editing the file, update the `bot_config` row and `trading_tokens` table in PostgreSQL.
 
-**Scan frequency (DB-tuneable):** set `scanIntervalMinutes` in `bot_config.config` (default is 30). The bot reloads config from Postgres every cycle and schedules the next run using the latest value (clamped to 1–1440 minutes).
+**Do you need to restart the bot after DB changes?**
+
+- **Usually no**: the bot reloads config from Postgres every cycle, so changes apply on the **next scan**.
+- **Exception**: changing **`rpc`** currently requires a **restart**, because the Solana RPC `Connection` is created once at startup.
+
+**Scan frequency (DB-tuneable):** set `scanIntervalMinutes` in `bot_config` (default is 30). The bot reloads config every cycle and schedules the next run using the latest value (clamped to 1–1440 minutes).
 
 ### 6. Set up Telegram alerts (optional)
 
@@ -106,7 +111,7 @@ The bot container runs `db:seed` on each start, then `node bot.js`. Scans run ev
 
 ## Project Structure
 
-```
+```text
   bot.js               ← Main entry + orchestration loop
   config.json          ← Default settings (seeded into Postgres)
   docker-compose.yml   ← Postgres + bot (persistent pgdata volume)
@@ -141,7 +146,18 @@ By default `dryRun` is `true` in the seeded config. In dry run:
 - Positions are tracked as if trades happened (at current market price)
 - Telegram notifications are sent with `[DRY RUN]`
 
+**Starting balance:** dry run does not model an account balance. It assumes unlimited USDC and is only constrained by `positionSizeUsdc` and `maxOpenPositions`.
+
 Set `dryRun` to `false` in the stored config for live trading (and set `WALLET_SECRET_KEY`).
+
+## Live Mode Wallet Balance Checks
+
+In live mode, the bot checks wallet balances via Solana RPC:
+
+- **SOL**: used to ensure the wallet can pay transaction fees
+- **USDC**: checked before buys to ensure sufficient funds for `positionSizeUsdc`
+
+If the wallet has insufficient SOL/USDC, the bot will throw a clear error (instead of failing later with a low-level RPC error).
 
 ## Risk Warning
 
