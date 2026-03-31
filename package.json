@@ -8,6 +8,7 @@
     "start": "node bot.js",
     "wallet": "node bot.js --generate-wallet",
     "db:seed": "node scripts/seed-config.mjs",
+    "db:prune-candles": "node scripts/prune-candles.mjs",
     "test": "node --experimental-vm-modules node_modules/.bin/jest"
   },
   "dependencies": {

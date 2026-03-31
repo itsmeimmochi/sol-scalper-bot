@@ -82,6 +82,17 @@ To change settings without editing the file, update the `bot_config` row and `tr
 
 **Scan frequency (DB-tuneable):** set `scanIntervalMinutes` in `bot_config` (default is 30). The bot reloads config every cycle and schedules the next run using the latest value (clamped to 1–1440 minutes).
 
+### 5.1 Candle history persistence (PostgreSQL)
+
+Hourly candle history is persisted in Postgres (`market_candles_hourly`) so restarts don’t need to re-fetch full history as often. The bot will only call CoinGecko to backfill candles when data is missing or stale.
+
+To prune old candle data:
+
+```bash
+# Delete candles older than N days:
+npm run db:prune-candles -- 30
+```
+
 ### 6. Set up Telegram alerts (optional)
 
 Already supported via `.env` or `export`.
