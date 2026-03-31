@@ -26,7 +26,7 @@ import {
   persistSellCloseWithRetries,
   persistBuyOpenWithRetries,
 } from './lib/positions.js';
-import { buy, sell, keypairFromSecretKeyJson } from './lib/executor.js';
+import { buy, sell, keypairFromSecretKeyJson, getWalletBalances } from './lib/executor.js';
 import { notify, buyMessage, sellMessage, errorMessage, scanSummaryMessage } from './lib/notify.js';
 import { ensureSchema, loadConfig } from './lib/db.js';
 
@@ -276,6 +276,15 @@ async function main() {
     console.log(`\n[bot] === Scan at ${new Date().toISOString()} ===`);
     console.log(`[bot] Mode: ${dryRun ? 'DRY RUN' : 'LIVE'} | Open positions: ${openPositionCount()}/${maxOpenPositions}`);
     printStats();
+
+    if (!dryRun && wallet) {
+      try {
+        const balances = await getWalletBalances({ connection, wallet });
+        console.log(`[bot] Wallet balances: ${balances.sol.toFixed(4)} SOL | $${balances.usdc.toFixed(2)} USDC`);
+      } catch (e) {
+        console.error(`[bot] Failed to fetch wallet balances: ${e.message}`);
+      }
+    }
 
     if (isHistoryStale()) {
       await refreshHistory(geckoIds);
