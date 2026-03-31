@@ -1,13 +1,75 @@
 {
   "tokens": [
-    {"symbol": "SOL", "geckoId": "solana", "mint": "So11111111111111111111111111111111111111112"},
-    {"symbol": "JUP", "geckoId": "jupiter-exchange-solana", "mint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"},
-    {"symbol": "RAY", "geckoId": "raydium", "mint": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"},
-    {"symbol": "ORCA", "geckoId": "orca", "mint": "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE"},
-    {"symbol": "JTO", "geckoId": "jito-governance-token", "mint": "jtojtomepa8berppaku3nkwx5h4khi9f2hzedsxqy"},
-    {"symbol": "PYTH", "geckoId": "pyth-network", "mint": "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3"},
-    {"symbol": "BONK", "geckoId": "bonk", "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"},
-    {"symbol": "WIF", "geckoId": "dogwifcoin", "mint": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm"}
+    {
+      "symbol": "SOL",
+      "geckoId": "solana",
+      "mint": "So11111111111111111111111111111111111111112"
+    },
+    {
+      "symbol": "JUP",
+      "geckoId": "jupiter-exchange-solana",
+      "mint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"
+    },
+    {
+      "symbol": "RAY",
+      "geckoId": "raydium",
+      "mint": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"
+    },
+    {
+      "symbol": "ORCA",
+      "geckoId": "orca",
+      "mint": "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE"
+    },
+    {
+      "symbol": "JTO",
+      "geckoId": "jito-governance-token",
+      "mint": "jtojtomepa8berppaku3nkwx5h4khi9f2hzedsxqy"
+    },
+    {
+      "symbol": "PYTH",
+      "geckoId": "pyth-network",
+      "mint": "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3"
+    },
+    {
+      "symbol": "BONK",
+      "geckoId": "bonk",
+      "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+    },
+    {
+      "symbol": "WIF",
+      "geckoId": "dogwifcoin",
+      "mint": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm"
+    },
+    {
+      "symbol": "RENDER",
+      "geckoId": "render-token",
+      "mint": "rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof"
+    },
+    {
+      "symbol": "W",
+      "geckoId": "wormhole",
+      "mint": "85VBFQZC9TZkfaptBWjvUw7YbZjy52A6mjtPGjstQAmQ"
+    },
+    {
+      "symbol": "DRIFT",
+      "geckoId": "drift-protocol",
+      "mint": "DriFtupJYLTosbwoN8koMbEYSx54aFAVLddWsbksjwg7"
+    },
+    {
+      "symbol": "POPCAT",
+      "geckoId": "popcat",
+      "mint": "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
+    },
+    {
+      "symbol": "MEW",
+      "geckoId": "cat-in-a-dogs-world",
+      "mint": "MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5"
+    },
+    {
+      "symbol": "FARTCOIN",
+      "geckoId": "fartcoin",
+      "mint": "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump"
+    }
   ],
   "strategy": {
     "bbPeriod": 20,
