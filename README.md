@@ -75,6 +75,8 @@ After changing [config.json](config.json), run `npm run db:seed` again (or redep
 
 To change settings without editing the file, update the `bot_config.config` JSON in PostgreSQL directly (then restart the bot).
 
+**Scan frequency (DB-tuneable):** set `scanIntervalMinutes` in `bot_config.config` (default is 30). The bot reloads config from Postgres every cycle and schedules the next run using the latest value (clamped to 1–1440 minutes).
+
 ### 6. Set up Telegram alerts (optional)
 
 Already supported via `.env` or `export`.

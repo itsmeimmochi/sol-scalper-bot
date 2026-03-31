@@ -47,21 +47,17 @@ if (process.argv.includes('--generate-wallet')) {
 // ── Main loop ──────────────────────────────────────────────────────────────────
 async function main() {
   await ensureSchema();
-  const config = await loadConfig();
+  const initialConfig = await loadConfig();
   const {
     tokens,
-    strategy: { bbPeriod, bbStdDev, rsiPeriod, rsiBuyThreshold, rsiSellThreshold },
-    risk: { positionSizeUsdc, takeProfitPct, stopLossPct, maxOpenPositions },
     rpc,
-    slippageBps,
-    dryRun,
-  } = config;
+  } = initialConfig;
 
   const geckoIds = tokens.map(t => t.geckoId);
   const connection = new Connection(rpc, 'confirmed');
 
   let wallet = null;
-  if (!dryRun) {
+  if (!initialConfig.dryRun) {
     const secret = process.env.WALLET_SECRET_KEY;
     if (!secret) {
       console.error('❌ WALLET_SECRET_KEY is not set. Required for live trading.');
@@ -72,8 +68,52 @@ async function main() {
     console.log(`[bot] Wallet: ${wallet.publicKey.toBase58()}`);
   }
 
+  function normalizeScanIntervalMs(config) {
+    const minutes = Number(config.scanIntervalMinutes ?? 30);
+    const fallback = 30 * 60 * 1000;
+    const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
+    if (!Number.isFinite(minutes)) {
+      return fallback;
+    }
+    return clamp(minutes, 1, 24 * 60) * 60 * 1000;
+  }
+
+  function summarizeConfig(config) {
+    const intervalMs = normalizeScanIntervalMs(config);
+    return {
+      tokens: config.tokens,
+      geckoIds: config.tokens.map(t => t.geckoId),
+      bbPeriod: config.strategy.bbPeriod,
+      bbStdDev: config.strategy.bbStdDev,
+      rsiPeriod: config.strategy.rsiPeriod,
+      rsiBuyThreshold: config.strategy.rsiBuyThreshold,
+      rsiSellThreshold: config.strategy.rsiSellThreshold,
+      positionSizeUsdc: config.risk.positionSizeUsdc,
+      takeProfitPct: config.risk.takeProfitPct,
+      stopLossPct: config.risk.stopLossPct,
+      maxOpenPositions: config.risk.maxOpenPositions,
+      slippageBps: config.slippageBps,
+      dryRun: config.dryRun,
+      intervalMs,
+    };
+  }
+
+  let runtime = summarizeConfig(initialConfig);
+
   // ── Process a single token using cached closes ─────────────────────────────────
   async function scanToken(token, currentPrice) {
+    const {
+      bbPeriod,
+      bbStdDev,
+      rsiPeriod,
+      rsiBuyThreshold,
+      rsiSellThreshold,
+      takeProfitPct,
+      stopLossPct,
+      maxOpenPositions,
+      slippageBps,
+      dryRun,
+    } = runtime;
     const { symbol, mint } = token;
     const result = { symbol, price: currentPrice.toFixed(4), rsi: 0, signal: null };
 
@@ -210,6 +250,29 @@ async function main() {
   }
 
   async function runOnce() {
+    try {
+      const latestConfig = await loadConfig();
+      runtime = summarizeConfig(latestConfig);
+    } catch (e) {
+      console.error(`[bot] Failed to reload config from DB (using previous): ${e.message}`);
+    }
+
+    const {
+      tokens,
+      geckoIds,
+      bbPeriod,
+      bbStdDev,
+      rsiPeriod,
+      rsiBuyThreshold,
+      rsiSellThreshold,
+      positionSizeUsdc,
+      takeProfitPct,
+      stopLossPct,
+      maxOpenPositions,
+      dryRun,
+      intervalMs,
+    } = runtime;
+
     console.log(`\n[bot] === Scan at ${new Date().toISOString()} ===`);
     console.log(`[bot] Mode: ${dryRun ? 'DRY RUN' : 'LIVE'} | Open positions: ${openPositionCount()}/${maxOpenPositions}`);
     printStats();
@@ -246,19 +309,28 @@ async function main() {
         dryRun,
       })
     );
+
+    const minutes = Math.round(intervalMs / 60000);
+    console.log(`\n[bot] Next scan in ${minutes} minute(s). Ctrl+C to stop.`);
+  }
+
+  function scheduleNextRun() {
+    const intervalMs = runtime.intervalMs ?? 30 * 60 * 1000;
+    setTimeout(async () => {
+      await runOnce();
+      scheduleNextRun();
+    }, intervalMs);
   }
 
   console.log('[bot] Sol Scalper Bot starting up...');
-  console.log(`[bot] Strategy: BB(${bbPeriod}, ${bbStdDev}) + RSI(${rsiPeriod}) | Buy RSI<${rsiBuyThreshold} | Sell RSI>${rsiSellThreshold}`);
-  console.log(`[bot] Risk: $${positionSizeUsdc}/trade | TP:+${takeProfitPct}% | SL:-${stopLossPct}% | Max:${maxOpenPositions}`);
-  console.log(`[bot] Tokens: ${tokens.map(t => t.symbol).join(', ')}`);
+  console.log(`[bot] Strategy: BB(${runtime.bbPeriod}, ${runtime.bbStdDev}) + RSI(${runtime.rsiPeriod}) | Buy RSI<${runtime.rsiBuyThreshold} | Sell RSI>${runtime.rsiSellThreshold}`);
+  console.log(`[bot] Risk: $${runtime.positionSizeUsdc}/trade | TP:+${runtime.takeProfitPct}% | SL:-${runtime.stopLossPct}% | Max:${runtime.maxOpenPositions}`);
+  console.log(`[bot] Tokens: ${runtime.tokens.map(t => t.symbol).join(', ')}`);
+  console.log(`[bot] Scan interval: ${Math.round(runtime.intervalMs / 60000)} minute(s) (config key: scanIntervalMinutes)`);
 
   await loadPositions();
   await runOnce();
-
-  const INTERVAL_MS = 30 * 60 * 1000;
-  console.log(`\n[bot] Next scan in 30 minutes. Ctrl+C to stop.`);
-  setInterval(runOnce, INTERVAL_MS);
+  scheduleNextRun();
 }
 
 main().catch(e => {
