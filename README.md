@@ -188,6 +188,8 @@ By default `dryRun` is `true` in the seeded config. In dry run:
 
 **Starting balance:** dry run does not model an account balance. It assumes unlimited USDC and is only constrained by `positionSizeUsdc` and `maxOpenPositions`.
 
+**Simulated vs live in the database:** Open positions and closed trades store `is_simulated` (defaults to **true**, matching default dry run). Paper opens/closes use `is_simulated = true`. On-chain activity persists with `is_simulated = false`. Stats and open-position counts use **only the lane for the current mode** (simulated when `dryRun`, live when not).
+
 Set `dryRun` to `false` in the stored config for live trading (and set `WALLET_SECRET_KEY`).
 
 ## Live Mode Wallet Balance Checks
@@ -198,6 +200,27 @@ In live mode, the bot checks wallet balances via Solana RPC:
 - **USDC**: checked before buys to ensure sufficient funds for `positionSizeUsdc`
 
 If the wallet has insufficient SOL/USDC, the bot will throw a clear error (instead of failing later with a low-level RPC error).
+
+### Live scan: paper purge and wallet reconcile
+
+On each **live** scan, after fetching current prices:
+
+1. **Purge simulated opens:** all rows in `open_positions` with `is_simulated = true` are deleted so they cannot block live buys or be mistaken for holdings.
+2. **Reconcile live rows with the wallet:** for each **live** open row, if the wallet’s balance for that mint is below ~**$0.50** notional (at the current price) or price is missing, the row is removed (no row inserted into `trades`). For each **tracked** token, if the wallet holds above that threshold and there is no live open row, the bot **adopts** an open row (`is_simulated = false`) using the current price and on-chain balance, up to `maxOpenPositions`.
+
+Adopted positions use **mark price at reconcile time** as `entry_price` (not historical cost basis).
+
+### Migrating existing databases
+
+Adding `is_simulated` backfills existing rows with the column default (**true**). That matches databases that only ran in dry run. If you already had **real** live positions or closed trades before this column existed, run a one-time update to mark those rows as live, for example:
+
+```sql
+-- Example only: adjust symbols/dates to match your data
+UPDATE open_positions SET is_simulated = false WHERE is_simulated = true AND /* your condition */;
+UPDATE trades SET is_simulated = false WHERE is_simulated = true AND /* your condition */;
+```
+
+Or clear paper state intentionally: `DELETE FROM open_positions WHERE is_simulated = true;`
 
 ## Risk Warning
 

@@ -25,6 +25,8 @@ import {
   getStats,
   persistSellCloseWithRetries,
   persistBuyOpenWithRetries,
+  purgeSimulatedOpenPositionsFromDb,
+  reconcileLiveOpenPositionsWithWallet,
 } from './lib/positions.js';
 import { buy, sell, keypairFromSecretKeyJson, getWalletBalances } from './lib/executor.js';
 import { notify, buyMessage, sellMessage, errorMessage, scanSummaryMessage } from './lib/notify.js';
@@ -56,15 +58,29 @@ async function main() {
   const geckoIds = tokens.map(t => t.geckoId);
   const connection = new Connection(rpc, 'confirmed');
 
-  let wallet = null;
-  if (!initialConfig.dryRun) {
+  function exitLiveWalletMisconfigured(detail) {
+    console.error(`❌ ${detail}`);
+    console.error('   Live trading (dry_run=false in DB) requires WALLET_SECRET_KEY in the environment.');
+    console.error('   Generate one with: npm run wallet');
+    process.exit(1);
+  }
+
+  function loadWalletForLiveTradingOrExit() {
     const secret = process.env.WALLET_SECRET_KEY;
     if (!secret) {
-      console.error('❌ WALLET_SECRET_KEY is not set. Required for live trading.');
-      console.error('   Generate one with: npm run wallet');
-      process.exit(1);
+      exitLiveWalletMisconfigured('WALLET_SECRET_KEY is not set.');
     }
-    wallet = keypairFromSecretKeyJson(secret);
+    try {
+      return keypairFromSecretKeyJson(secret);
+    } catch (e) {
+      exitLiveWalletMisconfigured(`Invalid WALLET_SECRET_KEY: ${e.message}`);
+    }
+  }
+
+  let wallet = null;
+
+  if (!initialConfig.dryRun) {
+    wallet = loadWalletForLiveTradingOrExit();
     console.log(`[bot] Wallet: ${wallet.publicKey.toBase58()}`);
   }
 
@@ -108,6 +124,7 @@ async function main() {
       rsiPeriod,
       rsiBuyThreshold,
       rsiSellThreshold,
+      positionSizeUsdc,
       takeProfitPct,
       stopLossPct,
       maxOpenPositions,
@@ -116,6 +133,7 @@ async function main() {
     } = runtime;
     const { symbol, mint } = token;
     const result = { symbol, price: currentPrice.toFixed(4), rsi: null, signal: null };
+    const cannotExecuteLiveSwaps = !dryRun && !wallet;
 
     const closes = getCloses(token.geckoId);
     if (!closes) {
@@ -147,7 +165,7 @@ async function main() {
       `[bot] ${symbol} | price=$${currentPrice.toFixed(6)} | BB[${bb.lower.toFixed(4)}, ${bb.middle.toFixed(4)}, ${bb.upper.toFixed(4)}] | RSI=${rsiValue.toFixed(1)}`
     );
 
-    const position = getPosition(symbol);
+    const position = getPosition(symbol, dryRun);
     if (position) {
       const { sell: doSell, reason } = shouldSell({
         close: currentPrice,
@@ -161,6 +179,11 @@ async function main() {
 
       if (doSell) {
         result.signal = 'sell';
+        if (cannotExecuteLiveSwaps) {
+          console.warn(`[bot] SELL signal for ${symbol} (${reason}) — wallet not loaded; skipping swap`);
+          result.signal = null;
+          return result;
+        }
         console.log(`[bot] SELL signal for ${symbol} — reason: ${reason}`);
         try {
           await sell({
@@ -181,7 +204,7 @@ async function main() {
 
         const pnl = pnlPct(position.entryPrice, currentPrice);
         try {
-          await persistSellCloseWithRetries(symbol, currentPrice, reason, position);
+          await persistSellCloseWithRetries(symbol, currentPrice, reason, position, dryRun);
         } catch (e) {
           console.error(
             `[bot] CRITICAL: sell completed but position close could not be persisted for ${symbol}: ${e.message}`
@@ -199,18 +222,23 @@ async function main() {
       close: currentPrice,
       bb,
       rsiValue,
-      hasOpenPosition: hasPosition(symbol),
+      hasOpenPosition: hasPosition(symbol, dryRun),
       rsiBuyThreshold,
     });
 
     if (buySignal) {
       result.signal = 'buy';
-      if (openPositionCount() >= maxOpenPositions) {
+      if (openPositionCount(dryRun) >= maxOpenPositions) {
         console.log(`[bot] BUY signal for ${symbol} but max positions (${maxOpenPositions}) reached — skipping`);
         result.signal = null;
         return result;
       }
       console.log(`[bot] BUY signal for ${symbol} @ $${currentPrice.toFixed(6)}`);
+      if (cannotExecuteLiveSwaps) {
+        console.warn(`[bot] BUY signal for ${symbol} — wallet not loaded; skipping swap`);
+        result.signal = null;
+        return result;
+      }
       let buyResult;
       try {
         buyResult = await buy({
@@ -235,6 +263,7 @@ async function main() {
         entryPrice: buyResult.entryPrice,
         sizeUsdc: positionSizeUsdc,
         tokenAmount: buyResult.tokenAmount,
+        isSimulated: dryRun,
       });
 
       if (!persistBuy.ok) {
@@ -247,8 +276,8 @@ async function main() {
     return result;
   }
 
-  function printStats() {
-    const s = getStats();
+  function printStats(dryRun) {
+    const s = getStats(dryRun);
     if (s.total === 0) {
       console.log('[bot] Stats: no closed trades yet');
       return;
@@ -284,9 +313,17 @@ async function main() {
       intervalMs,
     } = runtime;
 
+    if (dryRun) {
+      wallet = null;
+    } else {
+      wallet = loadWalletForLiveTradingOrExit();
+    }
+
     console.log(`\n[bot] === Scan at ${new Date().toISOString()} ===`);
-    console.log(`[bot] Mode: ${dryRun ? 'DRY RUN' : 'LIVE'} | Open positions: ${openPositionCount()}/${maxOpenPositions}`);
-    printStats();
+    console.log(
+      `[bot] Mode: ${dryRun ? 'DRY RUN' : 'LIVE'} | Open positions: ${openPositionCount(dryRun)}/${maxOpenPositions}`
+    );
+    printStats(dryRun);
 
     if (!dryRun && wallet) {
       try {
@@ -311,6 +348,17 @@ async function main() {
       return;
     }
 
+    if (!dryRun && wallet) {
+      await purgeSimulatedOpenPositionsFromDb();
+      await reconcileLiveOpenPositionsWithWallet({
+        connection,
+        wallet,
+        tokens,
+        currentPrices,
+        maxOpenPositions,
+      });
+    }
+
     const results = [];
     for (const token of tokens) {
       const price = currentPrices.get(token.geckoId);
@@ -325,8 +373,8 @@ async function main() {
     await notify(
       scanSummaryMessage({
         results,
-        openPositions: openPositionCount(),
-        stats: getStats(),
+        openPositions: openPositionCount(dryRun),
+        stats: getStats(dryRun),
         dryRun,
       })
     );
