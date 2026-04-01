@@ -115,7 +115,7 @@ async function main() {
       dryRun,
     } = runtime;
     const { symbol, mint } = token;
-    const result = { symbol, price: currentPrice.toFixed(4), rsi: 0, signal: null };
+    const result = { symbol, price: currentPrice.toFixed(4), rsi: null, signal: null };
 
     const closes = getCloses(token.geckoId);
     if (!closes) {
@@ -123,14 +123,25 @@ async function main() {
       return result;
     }
 
+    const minForRsi = rsiPeriod + 1;
+    if (closes.length < minForRsi) {
+      console.warn(
+        `[bot] Not enough data for ${symbol} (${closes.length} closes, need ${minForRsi} for RSI / ${bbPeriod + 1} for BB)`
+      );
+      return result;
+    }
+
+    const rsiValue = rsi(closes, rsiPeriod);
+    result.rsi = rsiValue;
+
     if (closes.length < bbPeriod + 1) {
-      console.warn(`[bot] Not enough data for ${symbol} (${closes.length} candles, need ${bbPeriod + 1})`);
+      console.warn(
+        `[bot] ${symbol} | RSI=${rsiValue.toFixed(1)} | need ${bbPeriod + 1} hourly closes for Bollinger/trading (have ${closes.length})`
+      );
       return result;
     }
 
     const bb = bollingerBands(closes, bbPeriod, bbStdDev);
-    const rsiValue = rsi(closes, rsiPeriod);
-    result.rsi = rsiValue;
 
     console.log(
       `[bot] ${symbol} | price=$${currentPrice.toFixed(6)} | BB[${bb.lower.toFixed(4)}, ${bb.middle.toFixed(4)}, ${bb.upper.toFixed(4)}] | RSI=${rsiValue.toFixed(1)}`
