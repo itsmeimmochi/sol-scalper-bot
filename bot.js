@@ -286,7 +286,8 @@ async function main() {
       }
     }
 
-    if (isHistoryStale()) {
+    const minClosesForIndicators = Math.max(bbPeriod + 1, rsiPeriod + 1);
+    if (isHistoryStale(geckoIds, minClosesForIndicators)) {
       await refreshHistory(geckoIds);
     }
 
