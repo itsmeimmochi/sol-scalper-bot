@@ -120,6 +120,35 @@ The bot container runs `db:seed` on each start, then `node bot.js`. Scans run ev
 3. Ensure the **`pgdata` volume** is persisted the way Coolify expects for named volumes.
 4. Postgres is published on **`${POSTGRES_HOST_PORT:-5432}:5432`** so you can connect from the server or LAN (adjust firewall; use a strong password; avoid exposing `5432` on the public internet without restrictions).
 
+### SSH tunnel for a local database GUI
+
+To use TablePlus, DBeaver, Postico, pgAdmin, etc. on your laptop **without** opening Postgres to the public internet, forward the server’s Postgres port over SSH.
+
+1. Confirm which **host port** Postgres uses on the VPS (default **5432**, or whatever you set as `POSTGRES_HOST_PORT` in Coolify / compose).
+2. Pick a **free local port** (e.g. **5433**) so it does not clash with a Postgres already running on your machine.
+3. Open a tunnel (keep this terminal open while the GUI is connected):
+
+```bash
+ssh -N -L 5433:127.0.0.1:5432 your_ssh_host
+```
+
+- **`your_ssh_host`**: `user@server-ip` or a **`Host` alias** from `~/.ssh/config`.
+- **Left side (`5433`)**: connect your GUI to **`127.0.0.1`** and this port.
+- **Right side (`5432`)**: the port Postgres listens on **on the server**; change it if your deployment maps a different host port.
+
+In the database client:
+
+| Field | Value |
+| ----- | ----- |
+| Host | `127.0.0.1` |
+| Port | your local port (e.g. `5433`) |
+| User / password / database | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` from Coolify (defaults in [example.env](example.env) are `scalper` / `scalper` / `scalper` only if you did not override them) |
+| SSL | Usually off for a tunnel to localhost |
+
+**Connection URL shape:** `postgresql://USER:PASSWORD@127.0.0.1:5433/DBNAME` (URL-encode special characters in the password).
+
+If SSH works but the GUI reports **connection refused**, Postgres may not be published on the server loopback: on the VPS run `ss -lntp | grep 543` or inspect `docker ps` port mappings and adjust the **right-hand** port in `-L` to match.
+
 ## Project Structure
 
 ```text
