@@ -13,6 +13,12 @@ Agent-facing notes for working on `sol-scalper-bot`. This file complements `READ
   - **Dry run** (`dry_run=true` in DB): no swaps; simulated opens/closes recorded in DB (`is_simulated=true`)
   - **Live** (`dry_run=false` in DB): swaps via Jupiter; positions/trades recorded as live (`is_simulated=false`)
 
+## Strategy parity notes (v1 `main` vs current `production`)
+
+- **Signal logic parity**: `lib/indicators.js` (BB/RSI) and `lib/signals.js` (`shouldBuy`/`shouldSell`) are unchanged vs v1. If performance regressed, it is likely due to **inputs/state** around the strategy (history series construction, scan cadence, persistence, or execution), not the indicator math or rule thresholds.
+- **Closes series construction**: `lib/market.js` hydrates hourly closes from Postgres and **appends the latest spot price once per scan** into the in-memory closes cache. This matches v1 behavior (indicators operate on “hourly history + latest price”), but note it means the effective sample spacing is the **scan interval** for the newest points.
+- **Lane safety invariant (critical)**: `open_positions` must support **simulated and live rows simultaneously**. The table primary key is now `(symbol, is_simulated)` (and in-memory position keys include the lane) so dry/live can coexist without collisions.
+
 ## Setup commands
 
 - **Install deps**: `npm install`
@@ -117,4 +123,3 @@ ssh -N -L 5433:127.0.0.1:5432 your_ssh_host
 
 - Unit tests: `npm test`
 - Tests do **not** require a database.
-
