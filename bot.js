@@ -6,8 +6,8 @@
  *   node bot.js --generate-wallet — generate a new keypair and exit
  *
  * API call budget:
- *   - Startup + every 2h: 8 calls (one per token, 10s apart) for full history
- *   - Every 30-min scan: 1 batch call for all current prices
+ *   - History refresh (startup + every ~2h, or when cache is short): one CoinGecko history fetch per token, 10s apart
+ *   - Each scan: 1 batch `/simple/price` for all tokens (count = number of configured gecko IDs)
  */
 
 import 'dotenv/config';
@@ -74,6 +74,29 @@ async function main() {
       return keypairFromSecretKeyJson(secret);
     } catch (e) {
       exitLiveWalletMisconfigured(`Invalid WALLET_SECRET_KEY: ${e.message}`);
+    }
+  }
+
+  /**
+   * Per-scan wallet load: never calls process.exit. Used after config reload so a DB flip to dry_run
+   * (or a transient reload failure while the previous cycle was LIVE) cannot kill the process when
+   * the env wallet is absent — live-only steps are skipped until the wallet is valid again.
+   */
+  function tryLoadWalletForLiveTrading() {
+    const secret = process.env.WALLET_SECRET_KEY;
+    if (!secret) {
+      console.error(
+        '[bot] DB has dry_run=false but WALLET_SECRET_KEY is missing — skipping live reconcile and swaps this scan. Set the secret or set dry_run=true.'
+      );
+      return null;
+    }
+    try {
+      return keypairFromSecretKeyJson(secret);
+    } catch (e) {
+      console.error(
+        `[bot] DB has dry_run=false but WALLET_SECRET_KEY is invalid (${e.message}) — skipping live reconcile and swaps this scan.`
+      );
+      return null;
     }
   }
 
@@ -316,7 +339,7 @@ async function main() {
     if (dryRun) {
       wallet = null;
     } else {
-      wallet = loadWalletForLiveTradingOrExit();
+      wallet = tryLoadWalletForLiveTrading();
     }
 
     console.log(`\n[bot] === Scan at ${new Date().toISOString()} ===`);
@@ -349,14 +372,19 @@ async function main() {
     }
 
     if (!dryRun && wallet) {
-      await purgeSimulatedOpenPositionsFromDb();
-      await reconcileLiveOpenPositionsWithWallet({
-        connection,
-        wallet,
-        tokens,
-        currentPrices,
-        maxOpenPositions,
-      });
+      try {
+        await purgeSimulatedOpenPositionsFromDb();
+        await reconcileLiveOpenPositionsWithWallet({
+          connection,
+          wallet,
+          tokens,
+          currentPrices,
+          maxOpenPositions,
+        });
+      } catch (e) {
+        console.error(`[bot] Live purge/reconcile failed (scan continues): ${e.message}`);
+        await notify(errorMessage('live-reconcile', e));
+      }
     }
 
     const results = [];

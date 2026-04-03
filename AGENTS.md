@@ -16,8 +16,15 @@ Agent-facing notes for working on `sol-scalper-bot`. This file complements `READ
 ## Strategy parity notes (v1 `main` vs current `production`)
 
 - **Signal logic parity**: `lib/indicators.js` (BB/RSI) and `lib/signals.js` (`shouldBuy`/`shouldSell`) are unchanged vs v1. If performance regressed, it is likely due to **inputs/state** around the strategy (history series construction, scan cadence, persistence, or execution), not the indicator math or rule thresholds.
-- **Closes series construction**: `lib/market.js` hydrates hourly closes from Postgres and **appends the latest spot price once per scan** into the in-memory closes cache. This matches v1 behavior (indicators operate on “hourly history + latest price”), but note it means the effective sample spacing is the **scan interval** for the newest points.
+- **Closes series construction**: `lib/market.js` hydrates hourly closes from Postgres and **appends the latest spot price once per scan** into the in-memory closes cache. This matches v1 behavior (indicators operate on “hourly history + latest price”), but note it means the effective sample spacing is the **scan interval** for the newest points. If the scan runs more than once within the same UTC hour, the in-memory series gains **multiple** recent points for that hour (the DB row for the current hour is updated in place). README “1h candles” refers to CoinGecko’s hourly history plus this per-scan spot behavior, not strictly one sample per scan interval in SQL.
 - **Lane safety invariant (critical)**: `open_positions` must support **simulated and live rows simultaneously**. The table primary key is now `(symbol, is_simulated)` (and in-memory position keys include the lane) so dry/live can coexist without collisions.
+
+## Jupiter and token amounts (live trading)
+
+- **`open_positions.token_amount`** is stored in **UI units** (human-readable token amount), consistent with `buy()` output and wallet reconcile adoption.
+- **Buys**: `lib/executor.js` `getQuote` converts USDC to atomic units before calling Jupiter.
+- **Sells**: Jupiter’s quote `amount` is **always atomic** (smallest units). Live `sell()` must read mint **decimals** from the chain, convert UI → atomic (`lib/tokenAmount.js` `uiAmountToRawFloorBigInt`), then pass that to `getSellQuote({ inputAmountRaw })`. Do not pass UI amount directly as `amount`.
+- **FP note**: `uiAmountToRawFloorBigInt` uses `number` math; astronomically large UI balances could lose precision — not expected for this bot’s position sizes.
 
 ## Setup commands
 
@@ -85,7 +92,7 @@ docker compose up -d --build
 ```
 
 - The `db` service stores data in the named volume `pgdata`.
-- The `bot` container runs `node scripts/seed-config.mjs` on each start, then starts `node bot.js`.
+- The `bot` container runs `node scripts/seed-config.mjs` on each start, then starts `node bot.js`. That seed **re-upserts** `bot_config` and `trading_tokens` from `config.json` on **every** container start, so Postgres-only strategy edits are overwritten unless `config.json` matches (or seeding is changed).
 - Postgres is published to the host at `${POSTGRES_HOST_PORT:-5432}:5432` (do not expose publicly without network restrictions).
 
 ### Coolify checklist
@@ -107,11 +114,12 @@ ssh -N -L 5433:127.0.0.1:5432 your_ssh_host
 
 ## Runtime behavior / invariants agents should preserve
 
-- **Live trading requires a wallet**: if the DB config says live (`dry_run=false`) and `WALLET_SECRET_KEY` is missing/invalid, the process exits fast (it should not limp along).
+- **Live trading requires a wallet at startup**: if the **initial** DB config is live (`dry_run=false`) and `WALLET_SECRET_KEY` is missing/invalid, the process exits immediately. On **later scans**, after config reload, live mode with a missing/invalid key **does not** exit: the bot logs an error and skips live reconcile and swaps for that scan (`wallet` stays null; same path as `cannotExecuteLiveSwaps` in `scanToken`). This avoids sudden termination when toggling `dry_run` or when the wallet env is fixed/broken mid-run.
 - **Simulated vs live lanes**: stats, open-position counts, and position lookups are lane-specific (simulated when dry run; live when not).
 - **Reconcile on live scans**:
   - simulated opens are purged from DB so paper state cannot block live buys
   - live open rows are reconciled against wallet balances (drop dust / adopt holdings)
+  - if purge/reconcile throws (RPC or DB), the bot logs, sends `live-reconcile` via `notify` if configured, and **continues the scan and future schedules** — it does not exit the loop
 
 ## Code style (project conventions)
 

@@ -4,14 +4,16 @@ A Solana scalping bot using **Bollinger Band Mean Reversion** strategy.
 
 ## Strategy
 
-- **Timeframe**: 1-hour candles (from CoinGecko free API)
+The bot reads indicator and threshold settings from PostgreSQL (`bot_config`) each scan. The values below are the **defaults** in [config.json](config.json) after seeding; you can override them in the database without editing the file.
+
+- **Timeframe**: Hourly history from CoinGecko, plus the **current spot price** appended on every scan (indicators use this blended series; see [AGENTS.md](AGENTS.md) for details).
 - **Indicators**: Bollinger Bands (20, 2.0) + RSI (14)
 - **Buy**: Close ≤ Lower BB **AND** RSI < 38
 - **Sell**: Close ≥ Middle BB (SMA) **OR** RSI > 65 **OR** Stop-loss **OR** Take-profit
 
-## Token Universe
+## Token universe
 
-SOL, JUP, RAY, ORCA, JTO, PYTH, BONK, WIF
+Tracked symbols and mints are defined by [config.json](config.json) (seeded into `trading_tokens`). Use those as the source of truth rather than a fixed list in this readme.
 
 ## Quick Start
 
@@ -73,7 +75,9 @@ Defaults live in [config.json](config.json) and are **upserted** into Postgres b
 
 After changing [config.json](config.json), run `npm run db:seed` again (or redeploy so the container entrypoint re-seeds).
 
-To change settings without editing the file, update the `bot_config` row and `trading_tokens` table in PostgreSQL.
+**Docker / Compose:** the bot container runs the seed script on **every start**. That **overwrites** the `bot_config` row (and `trading_tokens`) from `config.json`. Hand-edited database values are lost on restart unless you change `config.json` (or adjust how you deploy seeding).
+
+To change settings without editing the file, update the `bot_config` row and `trading_tokens` table in PostgreSQL (and avoid a deploy that re-seeds from an old `config.json`, or your edits will be replaced).
 
 **Do you need to restart the bot after DB changes?**
 
@@ -162,6 +166,7 @@ If SSH works but the GUI reports **connection refused**, Postgres may not be pub
     indicators.js      ← Pure BB + RSI
     signals.js         ← Pure buy/sell logic
     executor.js        ← Jupiter swap execution
+    tokenAmount.js     ← UI ↔ atomic token amounts (e.g. live sells)
     positions.js       ← Positions + trades in Postgres
     notify.js          ← Telegram
   scripts/
@@ -230,5 +235,5 @@ Or clear paper state intentionally: `DELETE FROM open_positions WHERE is_simulat
 
 - **Pure functions**: `indicators.js` and `signals.js` have no I/O
 - **Persistence**: Config, open positions, and trade history live in **PostgreSQL** — no `wallet.json` / `positions.json` / `trades.json` at runtime
-- **Rate limiting**: 1.5s delay between token scans to respect CoinGecko free tier
+- **CoinGecko usage**: Each scan uses **one** batch `/simple/price` call for all tracked tokens. Candle **history** backfills use a separate endpoint **once per token** when data is missing or stale, with **10 seconds** between those requests; a **429** triggers a **60s** wait and one retry.
 - **Error isolation**: Failures on one token don't halt the entire scan loop
