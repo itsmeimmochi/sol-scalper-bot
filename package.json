@@ -9,6 +9,7 @@
     "wallet": "node bot.js --generate-wallet",
     "db:seed": "node scripts/seed-config.mjs",
     "db:prune-candles": "node scripts/prune-candles.mjs",
+    "analyze:trades-csv": "node scripts/analyze-trades-csv.mjs",
     "test": "node --experimental-vm-modules node_modules/.bin/jest"
   },
   "dependencies": {
