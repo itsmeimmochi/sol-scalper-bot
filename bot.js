@@ -31,6 +31,7 @@ import {
 import { buy, sell, keypairFromSecretKeyJson, getWalletBalances } from './lib/executor.js';
 import { notify, buyMessage, sellMessage, errorMessage, scanSummaryMessage } from './lib/notify.js';
 import { ensureSchema, loadConfig } from './lib/db.js';
+import { refreshDiscoveryIfDue } from './lib/discoveryRefresh.js';
 
 // ── CLI: generate wallet ───────────────────────────────────────────────────────
 if (process.argv.includes('--generate-wallet')) {
@@ -133,6 +134,7 @@ async function main() {
       maxOpenPositions: config.risk.maxOpenPositions,
       slippageBps: config.slippageBps,
       dryRun: config.dryRun,
+      discovery: config.discovery,
       intervalMs,
     };
   }
@@ -315,7 +317,18 @@ async function main() {
   async function runOnce() {
     try {
       const latestConfig = await loadConfig();
-      runtime = summarizeConfig(latestConfig);
+      try {
+        const refreshed = await refreshDiscoveryIfDue({ discovery: latestConfig.discovery });
+        if (refreshed.ran) {
+          const after = await loadConfig();
+          runtime = summarizeConfig(after);
+        } else {
+          runtime = summarizeConfig(latestConfig);
+        }
+      } catch (e) {
+        console.error(`[bot] Discovery refresh failed (continuing with current universe): ${e.message}`);
+        runtime = summarizeConfig(latestConfig);
+      }
     } catch (e) {
       console.error(`[bot] Failed to reload config from DB (using previous): ${e.message}`);
     }
