@@ -6,8 +6,8 @@
  *   node bot.js --generate-wallet — generate a new keypair and exit
  *
  * API call budget:
- *   - History refresh (startup + every ~2h, or when cache is short): one CoinGecko history fetch per token, 10s apart
- *   - Each scan: 1 batch `/simple/price` for all tokens (count = number of configured gecko IDs)
+ *   - History refresh (startup + every ~2h, or when cache is short): one CoinGecko history fetch per token needing backfill, 10–15s apart
+ *   - Each scan: chunked `/simple/price` (~45 ids per request, short gap between chunks)
  */
 
 import 'dotenv/config';
