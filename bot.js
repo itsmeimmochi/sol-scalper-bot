@@ -289,10 +289,15 @@ async function main() {
         sizeUsdc: positionSizeUsdc,
         tokenAmount: buyResult.tokenAmount,
         isSimulated: dryRun,
+        openedAt: buyResult.openedAt,
       });
 
       if (!persistBuy.ok) {
+        console.error(
+          `[bot] CRITICAL: buy completed but position open could not be persisted for ${symbol}: ${persistBuy.error?.message ?? persistBuy.error}`
+        );
         await notify(errorMessage(`buy-persist:${symbol}`, persistBuy.error));
+        return result;
       }
 
       await notify(buyMessage({ symbol, entryPrice: buyResult.entryPrice, sizeUsdc: positionSizeUsdc, dryRun }));

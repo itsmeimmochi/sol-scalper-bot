@@ -61,10 +61,17 @@ Set `DATABASE_URL` (default compose credentials):
 export DATABASE_URL="postgresql://scalper:scalper@127.0.0.1:5432/scalper"
 ```
 
-Seed config into Postgres from `config.json`:
+Seed config into Postgres from `config.json` (first run only; see below):
 
 ```bash
 npm run db:seed
+```
+
+To **overwrite** existing `bot_config` and `trading_tokens` from `config.json` after the DB is already initialized:
+
+```bash
+node scripts/seed-config.mjs --force
+# or: SEED_FORCE=1 npm run db:seed
 ```
 
 Run the bot:
@@ -92,7 +99,7 @@ docker compose up -d --build
 ```
 
 - The `db` service stores data in the named volume `pgdata`.
-- The `bot` container runs `node scripts/seed-config.mjs` on each start, then starts `node bot.js`. That seed **re-upserts** `bot_config` and `trading_tokens` from `config.json` on **every** container start, so Postgres-only strategy edits are overwritten unless `config.json` matches (or seeding is changed).
+- The `bot` container runs `node scripts/seed-config.mjs` on each start, then starts `node bot.js`. The seed script **always runs `ensureSchema()`** (migrations / new columns). It **only upserts** `bot_config` and `trading_tokens` from `config.json` when there is **no** `bot_config` row yet (fresh database). If the DB is already initialized, Postgres-only settings are **preserved** unless you run seed with `--force` or `SEED_FORCE=1`.
 - Postgres is published to the host at `${POSTGRES_HOST_PORT:-5432}:5432` (do not expose publicly without network restrictions).
 
 ### Coolify checklist
