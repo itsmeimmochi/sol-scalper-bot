@@ -105,6 +105,7 @@ docker compose up -d --build
 ### Coolify checklist
 
 - Use the repository’s `docker-compose.yml` as the deployment definition.
+- **Remote observation (logs + read-only DB)** from your laptop: see `observer/README.md` and `scripts/grant-observer-role.sql`. Secrets live in `observer/.env` (gitignored).
 - Provide secrets/env in Coolify:
   - `WALLET_SECRET_KEY` (required if you set `dry_run=false` in DB)
   - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (optional)
