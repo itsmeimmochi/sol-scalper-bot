@@ -54,6 +54,8 @@ describe('shouldSell', () => {
     takeProfitPct: 1.0,   // TP at 95 * 1.01 = 95.95
     stopLossPct: 0.8,     // SL at 95 * 0.992 = 94.24
     rsiSellThreshold: 65,
+    bbMiddleSellPosition: 0,
+    bbMiddleMinPnlPct: 0,
   };
 
   test('no sell when conditions not met', () => {
@@ -94,6 +96,30 @@ describe('shouldSell', () => {
     const { sell, reason } = shouldSell({ ...base, close: 105 });
     expect(sell).toBe(true);
     expect(reason).toBe('TAKE_PROFIT');
+  });
+
+  // middle=100, upper=110, half: exit=105. Entry 104 so TP(105.04) is above 105; close 105 triggers BB, not TP
+  test('bbMiddleSellPosition 0.5 requires price toward upper band', () => {
+    const halfBand = { ...base, bbMiddleSellPosition: 0.5, close: 104, entryPrice: 104, takeProfitPct: 1.0 };
+    expect(shouldSell(halfBand).sell).toBe(false);
+    const atExit = { ...halfBand, close: 105 };
+    const { sell, reason } = shouldSell(atExit);
+    expect(sell).toBe(true);
+    expect(reason).toBe('BB_MIDDLE');
+  });
+
+  test('bbMiddleMinPnlPct blocks BB_MIDDLE when PnL below floor', () => {
+    // At middle(100) with entry 100, PnL 0%. Floor 0.5% => hold
+    const gated = { ...base, close: 100, entryPrice: 100, bbMiddleMinPnlPct: 0.5 };
+    expect(shouldSell(gated).sell).toBe(false);
+  });
+
+  test('bbMiddleMinPnlPct allows BB_MIDDLE when PnL at floor', () => {
+    // +0.5% vs entry 100
+    const ok = { ...base, close: 100.5, entryPrice: 100, bbMiddleMinPnlPct: 0.5 };
+    const { sell, reason } = shouldSell(ok);
+    expect(sell).toBe(true);
+    expect(reason).toBe('BB_MIDDLE');
   });
 });
 

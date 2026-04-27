@@ -3,6 +3,7 @@
  *
  * Usage:
  *   node scripts/replay-decision.mjs --closes closes.json --close 123.45 --entry 120.00
+ * Optional: --bbMiddleSellPosition 0 --bbMiddleMinPnlPct 0
  *
  * closes.json must be a JSON array of numbers (oldest → newest).
  */
@@ -48,6 +49,8 @@ function main() {
   const rsiSellThreshold = toNum(readArg('--rsiSellThreshold') ?? 70, '--rsiSellThreshold');
   const takeProfitPct = toNum(readArg('--takeProfitPct') ?? 1.0, '--takeProfitPct');
   const stopLossPct = toNum(readArg('--stopLossPct') ?? 0.8, '--stopLossPct');
+  const bbMiddleSellPosition = toNum(readArg('--bbMiddleSellPosition') ?? 0, '--bbMiddleSellPosition');
+  const bbMiddleMinPnlPct = toNum(readArg('--bbMiddleMinPnlPct') ?? 0, '--bbMiddleMinPnlPct');
 
   const closes = JSON.parse(readFileSync(closesPath, 'utf8'));
   if (!Array.isArray(closes) || closes.some((n) => !Number.isFinite(Number(n)))) {
@@ -77,6 +80,8 @@ function main() {
           takeProfitPct,
           stopLossPct,
           rsiSellThreshold,
+          bbMiddleSellPosition,
+          bbMiddleMinPnlPct,
         });
 
   console.log(

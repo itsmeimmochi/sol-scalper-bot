@@ -128,6 +128,8 @@ async function main() {
       rsiPeriod: config.strategy.rsiPeriod,
       rsiBuyThreshold: config.strategy.rsiBuyThreshold,
       rsiSellThreshold: config.strategy.rsiSellThreshold,
+      bbMiddleSellPosition: config.strategy.bbMiddleSellPosition,
+      bbMiddleMinPnlPct: config.strategy.bbMiddleMinPnlPct,
       positionSizeUsdc: config.risk.positionSizeUsdc,
       takeProfitPct: config.risk.takeProfitPct,
       stopLossPct: config.risk.stopLossPct,
@@ -149,6 +151,8 @@ async function main() {
       rsiPeriod,
       rsiBuyThreshold,
       rsiSellThreshold,
+      bbMiddleSellPosition,
+      bbMiddleMinPnlPct,
       positionSizeUsdc,
       takeProfitPct,
       stopLossPct,
@@ -200,6 +204,8 @@ async function main() {
         takeProfitPct,
         stopLossPct,
         rsiSellThreshold,
+        bbMiddleSellPosition,
+        bbMiddleMinPnlPct,
       });
 
       if (doSell) {
@@ -438,7 +444,9 @@ async function main() {
   }
 
   console.log('[bot] Sol Scalper Bot starting up...');
-  console.log(`[bot] Strategy: BB(${runtime.bbPeriod}, ${runtime.bbStdDev}) + RSI(${runtime.rsiPeriod}) | Buy RSI<${runtime.rsiBuyThreshold} | Sell RSI>${runtime.rsiSellThreshold}`);
+  console.log(
+    `[bot] Strategy: BB(${runtime.bbPeriod}, ${runtime.bbStdDev}) + RSI(${runtime.rsiPeriod}) | Buy RSI<${runtime.rsiBuyThreshold} | Sell RSI>${runtime.rsiSellThreshold} | BB mid exit pos ${runtime.bbMiddleSellPosition} (0=mid,1=upper) | BB mid min PnL ${runtime.bbMiddleMinPnlPct}%`
+  );
   console.log(`[bot] Risk: $${runtime.positionSizeUsdc}/trade | TP:+${runtime.takeProfitPct}% | SL:-${runtime.stopLossPct}% | Max:${runtime.maxOpenPositions}`);
   console.log(`[bot] Tokens: ${runtime.tokens.map(t => t.symbol).join(', ')}`);
   console.log(`[bot] Scan interval: ${Math.round(runtime.intervalMs / 60000)} minute(s) (config key: scanIntervalMinutes)`);

@@ -9,7 +9,7 @@ The bot reads indicator and threshold settings from PostgreSQL (`bot_config`) ea
 - **Timeframe**: Hourly history from CoinGecko, plus the **current spot price** appended on every scan (indicators use this blended series; see [AGENTS.md](AGENTS.md) for details).
 - **Indicators**: Bollinger Bands (20, 2.0) + RSI (14)
 - **Buy**: Close ≤ Lower BB **AND** RSI < 38
-- **Sell**: Close ≥ Middle BB (SMA) **OR** RSI > 65 **OR** Stop-loss **OR** Take-profit
+- **Sell**: Close ≥ *band exit level* **OR** RSI > 65 **OR** Stop-loss **OR** Take-profit. The band exit level is the middle Bollinger band by default, interpolated toward the **upper** band by `strategy.bbMiddleSellPosition` (0 = middle, 1 = upper). When `strategy.bbMiddleMinPnlPct` is above zero, a band-based sell only runs when unrealized PnL (vs entry) meets at least that percentage, so you can avoid closing on the mean-reversion rule while still underwater (TP/SL/RSI are unchanged).
 
 ## Token universe
 

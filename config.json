@@ -76,7 +76,9 @@
     "bbStdDev": 2.0,
     "rsiPeriod": 14,
     "rsiBuyThreshold": 38,
-    "rsiSellThreshold": 65
+    "rsiSellThreshold": 65,
+    "bbMiddleSellPosition": 0,
+    "bbMiddleMinPnlPct": 0
   },
   "risk": {
     "positionSizeUsdc": 25,
