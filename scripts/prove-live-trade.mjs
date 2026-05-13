@@ -234,7 +234,7 @@ async function executeRoundtrip({ token, usdcAmount, slippageBps, wallet, connec
   console.log(`[prove-live] SELL done: tx=${sellResult.txid} | received≈$${sellResult.usdcReceived.toFixed(2)} USDC`);
 
   if (persist) {
-    await persistSellCloseWithRetries(token.symbol, buyResult.entryPrice, 'prove-live-script', {
+    await persistSellCloseWithRetries(token.symbol, sellResult.exitPrice, 'prove-live-script', {
       symbol: token.symbol,
       mint: token.mint,
       entryPrice: buyResult.entryPrice,

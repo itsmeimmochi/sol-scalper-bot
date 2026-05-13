@@ -216,8 +216,9 @@ async function main() {
           return result;
         }
         console.log(`[bot] SELL signal for ${symbol} — reason: ${reason}`);
+        let sellResult;
         try {
-          await sell({
+          sellResult = await sell({
             symbol,
             mint,
             tokenAmount: position.tokenAmount,
@@ -233,9 +234,10 @@ async function main() {
           return result;
         }
 
-        const pnl = pnlPct(position.entryPrice, currentPrice);
+        const exitPriceForPnl = sellResult.exitPrice;
+        const pnl = pnlPct(position.entryPrice, exitPriceForPnl);
         try {
-          await persistSellCloseWithRetries(symbol, currentPrice, reason, position, dryRun);
+          await persistSellCloseWithRetries(symbol, exitPriceForPnl, reason, position, dryRun);
         } catch (e) {
           console.error(
             `[bot] CRITICAL: sell completed but position close could not be persisted for ${symbol}: ${e.message}`
@@ -244,7 +246,9 @@ async function main() {
           return result;
         }
 
-        await notify(sellMessage({ symbol, entryPrice: position.entryPrice, exitPrice: currentPrice, pnl, reason, dryRun }));
+        await notify(
+          sellMessage({ symbol, entryPrice: position.entryPrice, exitPrice: exitPriceForPnl, pnl, reason, dryRun })
+        );
       }
       return result;
     }
