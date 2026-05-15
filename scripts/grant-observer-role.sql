@@ -27,7 +27,7 @@ GRANT SELECT ON TABLE
   open_positions,
   market_candles_hourly,
   trading_tokens,
-  discovered_trading_tokens
+  schema_migrations
 TO scalper_observer;
 
 -- Verify (as scalper_observer):

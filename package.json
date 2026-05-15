@@ -8,6 +8,7 @@
     "start": "node bot.js",
     "wallet": "node bot.js --generate-wallet",
     "db:seed": "node scripts/seed-config.mjs",
+    "db:migrate": "node scripts/run-migrations.mjs",
     "db:prune-candles": "node scripts/prune-candles.mjs",
     "analyze:trades-csv": "node scripts/analyze-trades-csv.mjs",
     "prove:live": "node scripts/prove-live-trade.mjs",

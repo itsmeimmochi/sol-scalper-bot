@@ -30,7 +30,7 @@ import {
 } from './lib/positions.js';
 import { buy, sell, keypairFromSecretKeyJson, getWalletBalances } from './lib/executor.js';
 import { notify, buyMessage, sellMessage, errorMessage, scanSummaryMessage } from './lib/notify.js';
-import { ensureSchema, loadConfig } from './lib/db.js';
+import { ensureSchema, loadConfig, tokenAllowsBuy } from './lib/db.js';
 import { refreshDiscoveryIfDue } from './lib/discoveryRefresh.js';
 
 // ── CLI: generate wallet ───────────────────────────────────────────────────────
@@ -263,6 +263,11 @@ async function main() {
 
     if (buySignal) {
       result.signal = 'buy';
+      if (!tokenAllowsBuy(token)) {
+        console.log(`[bot] BUY signal for ${symbol} but token is disabled in trading_tokens — skipping`);
+        result.signal = null;
+        return result;
+      }
       if (openPositionCount(dryRun) >= maxOpenPositions) {
         console.log(`[bot] BUY signal for ${symbol} but max positions (${maxOpenPositions}) reached — skipping`);
         result.signal = null;
